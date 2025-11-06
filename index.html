@@ -1,0 +1,837 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>STOCK COUNT</title>
+
+  <!-- Firebase compat -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+
+  <!-- XLSX -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <style>
+    :root{
+      --accent:#ff6f00;
+      --bg1:#fff7f0;
+      --bg2:#ffd59a;
+      --muted:#666;
+      --card:#fff;
+      --ok:#2e7d32;
+      --warn:#d32f2f;
+    }
+    *{box-sizing:border-box}
+    body { font-family: Inter, Arial, Helvetica, sans-serif; margin:0; padding:18px; background: linear-gradient(120deg,var(--bg1),var(--bg2)); color:#2f2f2f; }
+    header { background:var(--accent); color:#fff; padding:14px; text-align:center; font-size:22px; font-weight:700; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,.12); margin-bottom:16px; }
+    .container { max-width:1200px; margin:0 auto; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+    input, button, select, textarea { padding:8px; border-radius:8px; border:1px solid rgba(0,0,0,0.06); font-size:14px; }
+    button { background:var(--accent); color:#fff; border:none; cursor:pointer; box-shadow:0 6px 14px rgba(255,111,0,0.12); }
+    button.small { padding:6px 10px; font-size:13px; border-radius:6px; }
+    table { width:100%; border-collapse:collapse; margin-top:10px; background:var(--card); border-radius:10px; overflow:hidden; box-shadow:0 8px 30px rgba(0,0,0,.06); }
+    thead { background:linear-gradient(90deg,#ffe5cc,#ffc18a); }
+    th, td { padding:12px 10px; border-bottom:1px solid rgba(0,0,0,0.04); text-align:center; font-size:14px; vertical-align:middle; }
+    th { font-weight:700; color:#4a2d16; text-transform:uppercase; letter-spacing:0.6px; font-size:13px; }
+    td { background: rgba(255,255,255,0.98); color:#2f2f2f; }
+    tbody tr:nth-child(odd){ background: rgba(249,245,242,0.8); }
+    tbody tr:hover { background: rgba(255,244,229,0.9); transform: translateZ(0); }
+    #app-logo { width:480px; height:auto; border-radius:20px; object-fit:contain; cursor:pointer; display:block; margin:0 auto 12px; background:#fff; padding:8px; box-shadow:0 4px 12px rgba(0,0,0,.06); }
+    .num-input { width:96px; padding:6px; border-radius:6px; text-align:right; }
+    .status { margin-top:8px; color:green; font-weight:600; }
+    .hidden { display:none; }
+    .hint { color:#333; font-size:13px; margin-top:8px; }
+    .shelf-controls { display:flex; gap:8px; align-items:center; }
+    .muted { color:var(--muted); font-size:13px; }
+    .badge { display:inline-block; padding:6px 10px; border-radius:999px; font-weight:700; color:#fff; min-width:48px; text-align:center; }
+    .badge-ok { background: var(--ok); }       /* green */
+    .badge-low { background: var(--warn); }      /* red */
+    .order-flag { display:block; margin-top:6px; font-size:12px; font-weight:700; color:var(--warn); }
+    .apply-btn { margin-left:8px; background:#1976d2; padding:6px 8px; font-size:13px; border-radius:6px; }
+    .row-actions { display:flex; gap:6px; align-items:center; justify-content:center; }
+    .note { font-size:13px; color:#5b4638; }
+    .col-shelf { font-weight:600; color:#4a2d16; }
+
+    /* bottom bar layout (tidy buttons at bottom) */
+    .bottom-bar { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:16px; flex-wrap:wrap; }
+    .controls-left, .controls-center, .controls-right { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .controls-left { flex:1; }
+    .controls-center { justify-content:center; flex:1; }
+    .controls-right { justify-content:flex-end; flex:1; }
+
+    @media (max-width:1100px){
+      .num-input{width:72px}
+      th:nth-child(2), td:nth-child(2){ text-align:left; }
+    }
+    @media (max-width:700px){
+      table, thead, tbody, th, td, tr { display:block; }
+      thead { display:none; }
+      tr{ margin-bottom:10px; border-radius:8px; background:#fff; padding:8px; }
+      td{ display:flex; justify-content:space-between; padding:6px 8px; border-bottom:1px dashed rgba(0,0,0,.06); }
+      td::before{ font-weight:700; color:#4a2d16; margin-right:8px; }
+      td:nth-of-type(1)::before{ content:"No"; }
+      td:nth-of-type(2)::before{ content:"Item Name"; width:1px; flex:1; }
+      td:nth-of-type(3)::before{ content:"Initial Stock"; }
+      td:nth-of-type(4)::before{ content:"In"; }
+      td:nth-of-type(5)::before{ content:"Out"; }
+      td:nth-of-type(6)::before{ content:"Shelf"; }
+      td:nth-of-type(7)::before{ content:"Final Stock"; }
+      td:nth-of-type(8)::before{ content:"Actions"; }
+      .row-actions { gap:8px; }
+      .controls-right { justify-content:center; }
+    }
+  </style>
+</head>
+<body>
+  <header>STOCK COUNT</header>
+  <div class="container">
+
+    <div id="logo-wrap" style="text-align:center; display:none;">
+      <img id="app-logo" src="" alt="App Logo (admin can change)" title="Admin: click to change logo. Users: view only.">
+      <input id="logo-file" type="file" accept="image/*" class="hidden">
+    </div>
+
+    <div id="auth-section">
+      <h3>Sign up / Sign in</h3>
+      <div class="row">
+        <input id="email" type="email" placeholder="Email">
+        <input id="password" type="password" placeholder="Password">
+        <input id="admin-code" type="text" placeholder="Admin code (optional)">
+      </div>
+      <div class="row">
+        <button id="signup" class="small">Sign up</button>
+        <button id="login" class="small">Sign in</button>
+      </div>
+      <div id="auth-status" class="status"></div>
+    </div>
+
+    <div id="app-section" class="hidden">
+      <div class="row" style="justify-content:space-between; align-items:center;">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <div class="shelf-controls">
+            <label for="shelf-select" class="muted">Select Shelf:</label>
+            <select id="shelf-select">
+              <option value="ALL">-- All Shelves --</option>
+              <option value="">-- choose shelf --</option>
+            </select>
+            <button id="add-shelf-btn" class="small hidden" title="Add new shelf">+ Add Shelf</button>
+            <button id="edit-shelf-btn" class="small hidden" title="Edit selected shelf">Edit Shelf</button>
+            <button id="delete-shelf-btn" class="small hidden" title="Delete selected shelf">Delete Shelf</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <!-- moved Sign out to bottom; keep search/sort/add here -->
+          <input id="search" placeholder="Search item...">
+          <button id="sort-asc" class="small">A-Z</button>
+          <button id="sort-desc" class="small">Z-A</button>
+          <button id="add-item-btn" class="small">Add New Item</button>
+        </div>
+      </div>
+
+      <table aria-label="Inventory Table">
+        <thead>
+          <tr>
+            <th style="width:48px">No</th>
+            <th style="text-align:left">Item Name</th>
+            <th>Initial Stock</th>
+            <th>In (+)</th>
+            <th>Out (-)</th>
+            <th>Shelf</th>
+            <th>Final Stock</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="items-table"></tbody>
+      </table>
+
+      <!-- bottom bar: admin controls, delete account, sign out, app status -->
+      <div class="bottom-bar">
+        <div class="controls-left">
+          <div id="admin-controls" class="row hidden" style="margin:0;">
+            <button id="import-btn" class="small">Import (Excel/CSV)</button>
+            <button id="export-btn" class="small">Export Excel</button>
+            <button id="delete-all-btn" class="small">Delete All Items</button>
+          </div>
+        </div>
+
+        <div class="controls-center">
+          <div class="hint" style="margin:0;">
+            <div class="note" style="margin:0">Safety stock minimum: 1. If final stock falls below 1, the system will enforce minimum 1 and mark the item as needing reorder.</div>
+          </div>
+        </div>
+
+        <div class="controls-right">
+          <button id="delete-account" class="small">Delete My Account</button>
+          <button id="logout" class="small">Sign out</button>
+          <div id="app-status" class="status" style="margin-left:8px;"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+/* CONFIG */
+const firebaseConfig = {
+    apiKey: "AIzaSyDohNEc6SE6F_YKRBQ5E4iV1ZTjAoZquqg",
+    authDomain: "stock-counttt.firebaseapp.com",
+    databaseURL: "https://stock-counttt-default-rtdb.firebaseio.com",
+    projectId: "stock-counttt",
+    storageBucket: "stock-counttt.firebasestorage.app",
+    messagingSenderId: "902468240503",
+    appId: "1:902468240503:web:acd2c6371d764d27e2f272",
+    measurementId: "G-LBP7N097XT"
+  };
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+const authSection = document.getElementById('auth-section');
+const appSection = document.getElementById('app-section');
+const emailInput = document.getElementById('email');
+const passwordInput = document.getElementById('password');
+const adminCodeInput = document.getElementById('admin-code');
+const signupBtn = document.getElementById('signup');
+const loginBtn = document.getElementById('login');
+const logoutBtn = document.getElementById('logout');
+const authStatus = document.getElementById('auth-status');
+
+const logoWrap = document.getElementById('logo-wrap');
+const appLogo = document.getElementById('app-logo');
+const logoFile = document.getElementById('logo-file');
+
+const shelfSelect = document.getElementById('shelf-select');
+const addShelfBtn = document.getElementById('add-shelf-btn');
+const editShelfBtn = document.getElementById('edit-shelf-btn');
+const deleteShelfBtn = document.getElementById('delete-shelf-btn');
+
+const searchInput = document.getElementById('search');
+const sortAscBtn = document.getElementById('sort-asc');
+const sortDescBtn = document.getElementById('sort-desc');
+const addItemBtn = document.getElementById('add-item-btn');
+
+const itemsTable = document.getElementById('items-table');
+const adminControls = document.getElementById('admin-controls');
+const importBtn = document.getElementById('import-btn');
+const exportBtn = document.getElementById('export-btn');
+const deleteAllBtn = document.getElementById('delete-all-btn');
+const deleteAccountBtn = document.getElementById('delete-account');
+const appStatus = document.getElementById('app-status');
+
+let currentUser = null;
+let currentUserRole = 'user';
+let itemsData = [];
+let shelves = [];
+let selectedShelfId = 'ALL';
+let itemsRefListener = null;
+
+const SAFETY_STOCK_MIN = 1;
+
+/* AUTH state */
+auth.onAuthStateChanged(async user => {
+  if (user) {
+    currentUser = user;
+    try {
+      const snap = await db.ref('users/' + user.uid + '/role').once('value');
+      currentUserRole = snap.val() || 'user';
+    } catch (e) {
+      currentUserRole = 'user';
+    }
+    showApp();
+  } else {
+    authSection.style.display = 'block';
+    appSection.classList.add('hidden');
+    logoWrap.style.display = 'none';
+  }
+});
+
+/* Signup / Login / Logout */
+signupBtn.addEventListener('click', async () => {
+  const email = emailInput.value.trim();
+  const pass = passwordInput.value;
+  if(!email || !pass){ authStatus.style.color='red'; authStatus.textContent='Email & password required'; return; }
+  const code = adminCodeInput.value.trim();
+  const role = (code === 'ADMIN123') ? 'admin' : 'user';
+  try {
+    const cred = await auth.createUserWithEmailAndPassword(email, pass);
+    await db.ref('users/' + cred.user.uid).set({ email, role });
+    authStatus.style.color='green'; authStatus.textContent='Sign up success. Please sign in.';
+  } catch (err) {
+    authStatus.style.color='red'; authStatus.textContent = err.message;
+  }
+});
+
+loginBtn.addEventListener('click', async () => {
+  const email = emailInput.value.trim();
+  const pass = passwordInput.value;
+  if(!email || !pass){ authStatus.style.color='red'; authStatus.textContent='Email & password required'; return; }
+  try {
+    const cred = await auth.signInWithEmailAndPassword(email, pass);
+    const snap = await db.ref('users/' + cred.user.uid + '/role').once('value');
+    currentUserRole = snap.val() || 'user';
+    showApp();
+  } catch (err) {
+    authStatus.style.color='red'; authStatus.textContent = err.message;
+  }
+});
+
+logoutBtn.addEventListener('click', ()=> auth.signOut().then(()=> location.reload()) );
+
+function showApp(){
+  authSection.style.display = 'none';
+  appSection.classList.remove('hidden');
+  logoWrap.style.display = 'block';
+  adminControls.classList.toggle('hidden', currentUserRole !== 'admin');
+  addShelfBtn.classList.toggle('hidden', currentUserRole !== 'admin');
+  editShelfBtn.classList.toggle('hidden', currentUserRole !== 'admin');
+  deleteShelfBtn.classList.toggle('hidden', currentUserRole !== 'admin');
+  setupLogoRealtime();
+  setupLogoUploadUI();
+  loadShelvesRealtime();
+}
+
+/* Logo */
+function setupLogoRealtime(){
+  db.ref('app/assets/logoBase64').on('value', snap => {
+    const dataUrl = snap.val();
+    appLogo.src = dataUrl || '';
+  });
+}
+function setupLogoUploadUI(){
+  appLogo.onclick = null;
+  logoFile.onchange = null;
+  if(currentUserRole === 'admin'){
+    appLogo.addEventListener('click', ()=> logoFile.click());
+    logoFile.addEventListener('change', async (ev) => {
+      const file = ev.target.files[0];
+      if(!file) return;
+      appStatus.textContent = 'Reading file...';
+      try {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const dataUrl = e.target.result;
+          if(!dataUrl) { appStatus.textContent = 'Failed to read file.'; setTimeout(()=> appStatus.textContent = '', 2000); return; }
+          await db.ref('app/assets').update({ logoBase64: dataUrl });
+          appStatus.textContent = 'Logo saved.';
+          setTimeout(()=> appStatus.textContent = '', 2000);
+        };
+        reader.readAsDataURL(file);
+      } catch(err) {
+        appStatus.textContent = 'Logo save failed.';
+        setTimeout(()=> appStatus.textContent = '', 2000);
+      }
+    });
+  } else {
+    appLogo.addEventListener('click', ()=> {});
+  }
+}
+
+/* Shelves realtime - includes ALL option */
+function loadShelvesRealtime(){
+  db.ref('shelves').on('value', snap => {
+    shelves = [];
+    shelfSelect.innerHTML = '';
+    const allOpt = document.createElement('option');
+    allOpt.value = 'ALL';
+    allOpt.textContent = '-- All Shelves --';
+    shelfSelect.appendChild(allOpt);
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = '-- choose shelf --';
+    shelfSelect.appendChild(placeholder);
+
+    snap.forEach(child => {
+      const v = child.val() || {};
+      shelves.push({ key: child.key, name: v.name || 'Untitled' });
+      const opt = document.createElement('option');
+      opt.value = child.key;
+      opt.textContent = v.name || 'Untitled';
+      shelfSelect.appendChild(opt);
+    });
+
+    // preserve selection when possible, default to ALL
+    const exists = (selectedShelfId === 'ALL') ? true : shelves.find(s => s.key === selectedShelfId);
+    if(!selectedShelfId || !exists){
+      selectedShelfId = 'ALL';
+      shelfSelect.value = 'ALL';
+      startItemsListenerForSelectedShelf();
+    } else {
+      shelfSelect.value = selectedShelfId;
+      startItemsListenerForSelectedShelf();
+    }
+  });
+}
+
+addShelfBtn.addEventListener('click', async ()=> {
+  const name = prompt('New shelf name:');
+  if(!name || !name.trim()) { alert('Name empty'); return; }
+  try {
+    const key = db.ref('shelves').push().key;
+    await db.ref('shelves/' + key).set({ name: name.trim(), createdBy: currentUser?.uid || '' });
+    appStatus.textContent = 'Shelf added.';
+    setTimeout(()=> appStatus.textContent = '', 1800);
+    selectedShelfId = key;
+    shelfSelect.value = key;
+    startItemsListenerForSelectedShelf();
+  } catch(err) {
+    appStatus.textContent = 'Add shelf failed: ' + (err.message || err);
+  }
+});
+
+editShelfBtn.addEventListener('click', async ()=> {
+  if(!selectedShelfId || selectedShelfId === 'ALL'){ alert('Select a single shelf first'); return; }
+  const current = shelves.find(s => s.key === selectedShelfId);
+  const newName = prompt('Edit shelf name:', current ? current.name : '');
+  if(!newName || !newName.trim()) return;
+  try {
+    await db.ref('shelves/' + selectedShelfId).update({ name: newName.trim() });
+    appStatus.textContent = 'Shelf renamed.';
+    setTimeout(()=> appStatus.textContent = '', 1800);
+  } catch(err) {
+    appStatus.textContent = 'Edit shelf failed: ' + (err.message || err);
+  }
+});
+
+deleteShelfBtn.addEventListener('click', async ()=> {
+  if(!selectedShelfId || selectedShelfId === 'ALL'){ alert('Select a single shelf first'); return; }
+  if(!confirm('Delete this shelf and all items inside? This cannot be undone.')) return;
+  try {
+    await db.ref('shelves/' + selectedShelfId).remove();
+    await db.ref('items/' + selectedShelfId).remove();
+    appStatus.textContent = 'Shelf and its items deleted.';
+    selectedShelfId = 'ALL';
+    shelfSelect.value = 'ALL';
+    stopItemsListener();
+    itemsData = [];
+    renderItems();
+    setTimeout(()=> appStatus.textContent = '', 2000);
+  } catch(err) {
+    appStatus.textContent = 'Delete shelf failed: ' + (err.message || err);
+  }
+});
+
+shelfSelect.addEventListener('change', ()=> {
+  selectedShelfId = shelfSelect.value || '';
+  if(!selectedShelfId){
+    stopItemsListener();
+    itemsData = [];
+    renderItems();
+    appStatus.textContent = 'No shelf selected.';
+    setTimeout(()=> appStatus.textContent = '', 1500);
+    return;
+  }
+  startItemsListenerForSelectedShelf();
+});
+
+/* Items listener: supports ALL (flatten) or single shelf */
+function startItemsListenerForSelectedShelf(){
+  stopItemsListener();
+  if(!selectedShelfId) return;
+
+  if(selectedShelfId === 'ALL'){
+    itemsRefListener = db.ref('items');
+    itemsRefListener.on('value', snap => {
+      itemsData = [];
+      snap.forEach(shelfChild => {
+        const shelfKey = shelfChild.key;
+        const shelfName = shelves.find(s => s.key === shelfKey)?.name || '';
+        shelfChild.forEach(child => {
+          const v = child.val() || {};
+          itemsData.push({
+            key: child.key,
+            name: v.name || '',
+            initialStock: Number(v.initialStock || 0),
+            stockIn: Number(v.stockIn || 0),
+            stockOut: Number(v.stockOut || 0),
+            finalStock: Number(v.finalStock || 0),
+            shelfKey: shelfKey,
+            shelf: v.shelf || shelfName
+          });
+        });
+      });
+      renderItems();
+    });
+    return;
+  }
+
+  itemsRefListener = db.ref('items/' + selectedShelfId);
+  itemsRefListener.on('value', snap => {
+    itemsData = [];
+    snap.forEach(child => {
+      const v = child.val() || {};
+      itemsData.push({
+        key: child.key,
+        name: v.name || '',
+        initialStock: Number(v.initialStock || 0),
+        stockIn: Number(v.stockIn || 0),
+        stockOut: Number(v.stockOut || 0),
+        finalStock: Number(v.finalStock || 0),
+        shelfKey: selectedShelfId,
+        shelf: v.shelf || (shelves.find(s=>s.key===selectedShelfId)?.name || '')
+      });
+    });
+    renderItems();
+  });
+}
+
+function stopItemsListener(){
+  try {
+    if(itemsRefListener && itemsRefListener.off) itemsRefListener.off();
+    itemsRefListener = null;
+  } catch(e){ /* ignore */ }
+}
+
+/* Render items (ORDER indicator under final stock when below safety) */
+function renderItems(){
+  const q = (searchInput.value || '').toLowerCase();
+  const filtered = itemsData.filter(i => (i.name||'').toLowerCase().includes(q));
+  itemsTable.innerHTML = '';
+  filtered.forEach((item, idx) => {
+    const tr = document.createElement('tr');
+
+    const tdNo = document.createElement('td'); tdNo.textContent = idx + 1;
+    const tdName = document.createElement('td'); tdName.textContent = item.name || ''; tdName.style.textAlign = 'left';
+    const tdInitial = document.createElement('td'); tdInitial.textContent = item.initialStock || 0;
+
+    const tdIn = document.createElement('td');
+    const inInput = document.createElement('input'); inInput.type='number'; inInput.min=0; inInput.value = item.stockIn || 0; inInput.className='num-input';
+    tdIn.appendChild(inInput);
+
+    const tdOut = document.createElement('td');
+    const outInput = document.createElement('input'); outInput.type='number'; outInput.min=0; outInput.value = item.stockOut || 0; outInput.className='num-input';
+    tdOut.appendChild(outInput);
+
+    const tdShelf = document.createElement('td'); tdShelf.className='col-shelf';
+    tdShelf.textContent = item.shelf || 'â€”';
+
+    const tdFinal = document.createElement('td');
+    const finalBadge = document.createElement('span'); finalBadge.className = 'badge';
+    const orderFlag = document.createElement('span'); orderFlag.className = 'order-flag'; orderFlag.textContent = '';
+
+    const computePreview = () => {
+      const inVal = parseInt(inInput.value || 0, 10) || 0;
+      const outVal = parseInt(outInput.value || 0, 10) || 0;
+      let preview = Math.max(0, (Number(item.initialStock || 0) + inVal - outVal));
+      finalBadge.textContent = preview;
+      if(preview < SAFETY_STOCK_MIN){
+        finalBadge.className = 'badge badge-low';
+        orderFlag.textContent = 'ORDER';
+      } else {
+        finalBadge.className = 'badge badge-ok';
+        orderFlag.textContent = '';
+      }
+    };
+    computePreview();
+    tdFinal.appendChild(finalBadge);
+    tdFinal.appendChild(orderFlag);
+
+    const tdAction = document.createElement('td'); tdAction.className = 'row-actions';
+
+    const applyBtn = document.createElement('button'); applyBtn.textContent = 'Apply'; applyBtn.className='apply-btn small';
+    applyBtn.title = 'Apply: update initial stock = final, reset transactions';
+    applyBtn.addEventListener('click', async () => {
+      const inVal = parseInt(inInput.value || 0, 10) || 0;
+      const outVal = parseInt(outInput.value || 0, 10) || 0;
+      let finalVal = Math.max(0, (Number(item.initialStock || 0) + inVal - outVal));
+      if(finalVal < SAFETY_STOCK_MIN){ finalVal = SAFETY_STOCK_MIN; appStatus.textContent = `Safety stock enforced: minimum ${SAFETY_STOCK_MIN}`; setTimeout(()=> appStatus.textContent = '', 2500); }
+      try {
+        const updateObj = { initialStock: finalVal, stockIn: 0, stockOut: 0, finalStock: finalVal, shelf: item.shelf || '' };
+        const targetShelfKey = item.shelfKey || selectedShelfId;
+        if(!targetShelfKey){ appStatus.textContent='No shelf target'; return; }
+        await db.ref('items/' + targetShelfKey + '/' + item.key).update(updateObj);
+        inInput.value = 0; outInput.value = 0;
+        finalBadge.textContent = finalVal;
+        if(finalVal < SAFETY_STOCK_MIN){ finalBadge.className = 'badge badge-low'; orderFlag.textContent = 'ORDER'; }
+        else { finalBadge.className = 'badge badge-ok'; orderFlag.textContent = ''; }
+      } catch(err){ appStatus.textContent = 'Apply failed'; setTimeout(()=> appStatus.textContent = '', 2000); }
+    });
+
+    const saveTxnBtn = document.createElement('button'); saveTxnBtn.textContent = 'Save'; saveTxnBtn.className='small';
+    saveTxnBtn.title = 'Save Stock In / Stock Out without applying to initial stock';
+    saveTxnBtn.addEventListener('click', async () => {
+      const inVal = parseInt(inInput.value || 0, 10) || 0;
+      const outVal = parseInt(outInput.value || 0, 10) || 0;
+      let finalVal = Math.max(0, (Number(item.initialStock || 0) + inVal - outVal));
+      if(finalVal < SAFETY_STOCK_MIN){ finalVal = SAFETY_STOCK_MIN; appStatus.textContent = `Safety stock enforced: minimum ${SAFETY_STOCK_MIN}`; setTimeout(()=> appStatus.textContent = '', 2500); }
+      try {
+        const updateObj = { stockIn: inVal, stockOut: outVal, finalStock: finalVal, shelf: item.shelf || '' };
+        const targetShelfKey = item.shelfKey || selectedShelfId;
+        if(!targetShelfKey){ appStatus.textContent='No shelf target'; return; }
+        await db.ref('items/' + targetShelfKey + '/' + item.key).update(updateObj);
+        finalBadge.textContent = finalVal;
+        if(finalVal < SAFETY_STOCK_MIN){ finalBadge.className = 'badge badge-low'; orderFlag.textContent = 'ORDER'; }
+        else { finalBadge.className = 'badge badge-ok'; orderFlag.textContent = ''; }
+      } catch(err){ appStatus.textContent = 'Save failed'; setTimeout(()=> appStatus.textContent = '', 2000); }
+    });
+
+    if(currentUserRole === 'admin'){
+      const editBtn = document.createElement('button'); editBtn.textContent = 'Edit'; editBtn.className='small';
+      editBtn.addEventListener('click', ()=> editItemName(item.key, item.name, item.shelfKey));
+      const deleteBtn = document.createElement('button'); deleteBtn.textContent = 'Delete'; deleteBtn.className='small';
+      deleteBtn.addEventListener('click', ()=> deleteItem(item.key, item.shelfKey));
+      tdAction.appendChild(editBtn); tdAction.appendChild(deleteBtn);
+    }
+
+    inInput.addEventListener('input', computePreview);
+    outInput.addEventListener('input', computePreview);
+
+    tdAction.appendChild(saveTxnBtn);
+    tdAction.appendChild(applyBtn);
+
+    tr.appendChild(tdNo);
+    tr.appendChild(tdName);
+    tr.appendChild(tdInitial);
+    tr.appendChild(tdIn);
+    tr.appendChild(tdOut);
+    tr.appendChild(tdShelf);
+    tr.appendChild(tdFinal);
+    tr.appendChild(tdAction);
+    itemsTable.appendChild(tr);
+  });
+}
+
+/* Add item (when viewing ALL, ask for shelf) */
+addItemBtn.addEventListener('click', async ()=> {
+  let targetShelfKey = selectedShelfId;
+  let shelfName = shelves.find(s => s.key === targetShelfKey)?.name || '';
+  if(selectedShelfId === 'ALL' || !selectedShelfId){
+    const shelfNameInput = prompt('Shelf name for this item (existing or new):', '');
+    if(!shelfNameInput || !shelfNameInput.trim()){ alert('Shelf name required'); return; }
+    shelfName = shelfNameInput.trim();
+    let shelfObj = shelves.find(s => (s.name || '').toLowerCase() === shelfName.toLowerCase());
+    if(!shelfObj){
+      targetShelfKey = db.ref('shelves').push().key;
+      await db.ref('shelves/' + targetShelfKey).set({ name: shelfName, createdBy: currentUser?.uid || '' });
+    } else {
+      targetShelfKey = shelfObj.key;
+    }
+  }
+
+  if(currentUserRole !== 'admin'){ alert('Only admin can add new items.'); return; }
+  const name = prompt('New item name:');
+  if(!name || !name.trim()) { alert('Name empty'); return; }
+  const initialRaw = prompt('Initial stock (number):', '0');
+  const initial = parseInt(initialRaw || 0, 10) || 0;
+
+  try {
+    const key = db.ref('items/' + targetShelfKey).push().key;
+    await db.ref('items/' + targetShelfKey + '/' + key).set({
+      name: name.trim(),
+      initialStock: initial,
+      stockIn: 0,
+      stockOut: 0,
+      finalStock: initial,
+      shelf: shelfName
+    });
+    selectedShelfId = targetShelfKey;
+    shelfSelect.value = targetShelfKey;
+    startItemsListenerForSelectedShelf();
+    appStatus.textContent = 'Item added to shelf: ' + shelfName;
+    setTimeout(()=> appStatus.textContent = '', 1800);
+  } catch(err){
+    appStatus.textContent = 'Add item failed: ' + (err.message || err);
+    setTimeout(()=> appStatus.textContent = '', 2500);
+  }
+});
+
+function editItemName(key, oldName, shelfKey){
+  const targetShelf = shelfKey || selectedShelfId;
+  if(!targetShelf || targetShelf === 'ALL') { alert('Select a shelf first'); return; }
+  const newName = prompt('New name:', oldName);
+  if(!newName || !newName.trim()) return;
+  db.ref('items/' + targetShelf + '/' + key).update({ name: newName.trim() });
+}
+
+function deleteItem(key, shelfKey){
+  const targetShelf = shelfKey || selectedShelfId;
+  if(!targetShelf || targetShelf === 'ALL') { alert('Select a shelf first'); return; }
+  if(!confirm('Delete this item?')) return;
+  db.ref('items/' + targetShelf + '/' + key).remove();
+}
+
+/* Search & Sort */
+searchInput.addEventListener('input', renderItems);
+sortAscBtn.addEventListener('click', ()=> { itemsData.sort((a,b)=> (a.name||'').localeCompare(b.name||'')); renderItems(); });
+sortDescBtn.addEventListener('click', ()=> { itemsData.sort((a,b)=> (b.name||'').localeCompare(a.name||'')); renderItems(); });
+
+/* Export */
+exportBtn.addEventListener('click', async ()=> {
+  if(!selectedShelfId){ appStatus.textContent = 'Select a shelf first.'; setTimeout(()=> appStatus.textContent = '', 2000); return; }
+  const rows = itemsData.map((it, i) => ({
+    No: i+1,
+    Name: it.name,
+    Shelf: it.shelf || (shelves.find(s=>s.key===selectedShelfId)?.name || ''),
+    InitialStock: it.initialStock,
+    StockIn: it.stockIn,
+    StockOut: it.stockOut,
+    FinalStock: it.finalStock
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Items');
+  const fnameSafe = (selectedShelfId === 'ALL') ? 'all_shelves' : (shelves.find(s=>s.key===selectedShelfId)?.name || 'shelf').replace(/[^a-z0-9_\-]/ig,'_');
+  XLSX.writeFile(wb, `items_${fnameSafe}.xlsx`);
+});
+
+/* Import (unchanged) */
+importBtn.addEventListener('click', ()=> {
+  if(currentUserRole !== 'admin'){ alert('Only admin can import items.'); return; }
+  const inp = document.createElement('input'); inp.type='file'; inp.accept='.xlsx,.xls,.csv';
+  inp.onchange = (ev) => {
+    const file = ev.target.files[0];
+    if(!file) return;
+    appStatus.textContent = 'Reading file...';
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        let rows = [];
+        const fname = (file.name || '').toLowerCase();
+        if(fname.endsWith('.csv')){
+          const text = e.target.result;
+          const sep = detectSeparator(text);
+          const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+          if(lines.length === 0){ appStatus.textContent = 'CSV empty'; return; }
+          const headers = lines[0].split(sep).map(h => sanitizeHeader(h));
+          for(let i=1;i<lines.length;i++){
+            const parts = lines[i].split(sep);
+            const obj = {};
+            for(let j=0;j<headers.length;j++){
+              obj[headers[j] || ('col'+j)] = (parts[j] !== undefined) ? parts[j].trim() : '';
+            }
+            rows.push(obj);
+          }
+        } else {
+          const wb = XLSX.read(e.target.result, { type:'binary' });
+          wb.SheetNames.forEach(sn => {
+            const sheet = wb.Sheets[sn];
+            const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+            json.forEach(r => rows.push(normalizeKeys(r)));
+          });
+        }
+
+        const normalized = rows.map((r, idx) => {
+          const rr = normalizeKeys(r);
+          let name = pickFirst(rr, ['name','nama','item_name','item','nama_barang','product','title']);
+          if(!name || String(name).trim()===''){
+            for(const k in rr){ if(typeof rr[k]==='string' && rr[k].trim()!=='' && isNaN(Number(rr[k].toString().replace(/,/g,'')))){ name = rr[k]; break; } }
+          }
+          if(!name) name = 'Item_' + (Date.now()%100000) + '_' + idx;
+          let initial = pickFirst(rr, ['initial_stock','initialstock','stok_awal','stokawal','stok','stock']);
+          if(initial===undefined || initial===''){ for(const k in rr){ const n=parseNumberSafe(rr[k]); if(!isNaN(n)){ initial=n; break; } } } else initial = parseNumberSafe(initial);
+          if(isNaN(initial)) initial = 0;
+          let inVal = pickFirst(rr, ['stock_in','stockin','masuk','add','in']); inVal = parseNumberSafe(inVal); if(isNaN(inVal)) inVal = 0;
+          let outVal = pickFirst(rr, ['stock_out','stockout','keluar','out']); outVal = parseNumberSafe(outVal); if(isNaN(outVal)) outVal = 0;
+          const shelfName = pickFirst(rr, ['shelf','rak','location','lokasi']) || '';
+          const final = Math.max(0, initial + (inVal||0) - (outVal||0));
+          return { name: String(name).trim(), initialStock: Number(initial), stockIn: Number(inVal), stockOut: Number(outVal), finalStock: Number(final), shelf: String(shelfName).trim() };
+        });
+
+        let added = 0;
+        for(const it of normalized){
+          let targetShelfKey = selectedShelfId || '';
+          if(it.shelf){
+            const exist = shelves.find(s => (s.name||'').toLowerCase() === it.shelf.toLowerCase());
+            if(exist) targetShelfKey = exist.key;
+            else {
+              const newKey = db.ref('shelves').push().key;
+              await db.ref('shelves/' + newKey).set({ name: it.shelf, createdBy: currentUser?.uid || '' });
+              targetShelfKey = newKey;
+            }
+          }
+          if(!targetShelfKey){
+            const defaultKey = db.ref('shelves').push().key;
+            await db.ref('shelves/' + defaultKey).set({ name: 'Imported', createdBy: currentUser?.uid || '' });
+            targetShelfKey = defaultKey;
+          }
+          const key = db.ref('items/' + targetShelfKey).push().key;
+          await db.ref('items/' + targetShelfKey + '/' + key).set({
+            name: it.name,
+            initialStock: it.initialStock,
+            stockIn: it.stockIn,
+            stockOut: it.stockOut,
+            finalStock: it.finalStock,
+            shelf: it.shelf || (shelves.find(s=>s.key===targetShelfKey)?.name || '')
+          });
+          added++;
+        }
+        appStatus.textContent = 'Import complete: ' + added + ' items added.';
+        setTimeout(()=> appStatus.textContent = '', 3500);
+      } catch(err){
+        appStatus.textContent = 'Import failed: ' + (err.message || err);
+        setTimeout(()=> appStatus.textContent = '', 3500);
+      }
+    };
+
+    if(file.name.toLowerCase().endsWith('.csv')) reader.readAsText(file);
+    else reader.readAsBinaryString(file);
+  };
+  inp.click();
+});
+
+function detectSeparator(text){
+  const first = text.split(/\r?\n/)[0] || '';
+  if(first.indexOf(';') !== -1) return ';';
+  if(first.indexOf(',') !== -1) return ',';
+  if(first.indexOf('\t') !== -1) return '\t';
+  return ',';
+}
+function sanitizeHeader(h){ if(h===undefined||h===null) return ''; return String(h).toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'').trim(); }
+function normalizeKeys(obj){ const out = {}; for(const k in obj){ const sk = sanitizeHeader(k); out[sk||k] = obj[k]; } return out; }
+function pickFirst(obj, candidates){ for(const c of candidates){ if(obj[c] !== undefined && obj[c] !== null && String(obj[c]).toString().trim() !== '') return obj[c]; } return undefined; }
+function parseNumberSafe(v){ if(v===null||v===undefined) return NaN; if(typeof v === 'number') return v; let s = String(v).trim(); if(s==='') return NaN; s = s.replace(/,/g,''); const dots = (s.match(/\./g) || []).length; if(dots > 1) s = s.replace(/\./g,''); const n = Number(s); return isNaN(n) ? NaN : n; }
+
+/* Delete all items */
+deleteAllBtn.addEventListener('click', async ()=> {
+  if(currentUserRole !== 'admin'){ alert('Only admin can delete all items'); return; }
+  if(!selectedShelfId || selectedShelfId === 'ALL'){ alert('Select a single shelf to delete all items.'); return; }
+  if(!confirm('Delete ALL items in this shelf? This cannot be undone.')) return;
+  try {
+    await db.ref('items/' + selectedShelfId).remove();
+    appStatus.textContent = 'All items deleted from shelf.';
+    setTimeout(()=> appStatus.textContent = '', 2500);
+  } catch(err){
+    appStatus.textContent = 'Delete failed: ' + (err.message || err);
+    setTimeout(()=> appStatus.textContent = '', 2500);
+  }
+});
+
+/* Delete account with re-auth fallback */
+deleteAccountBtn.addEventListener('click', async ()=> {
+  const user = auth.currentUser;
+  if(!user){ alert('No signed-in user'); return; }
+  if(!confirm('Delete your account? This will remove your authentication record and your user metadata.')) return;
+  try {
+    await db.ref('users/' + user.uid).remove();
+    await user.delete();
+    alert('Account deleted.');
+    location.reload();
+  } catch(err) {
+    if(err && err.code === 'auth/requires-recent-login'){
+      const pwd = prompt('For security please enter your password to confirm deletion:');
+      if(!pwd){ alert('Password required to reauthenticate.'); return; }
+      try {
+        const credential = firebase.auth.EmailAuthProvider.credential(user.email, pwd);
+        await user.reauthenticateWithCredential(credential);
+        await db.ref('users/' + user.uid).remove();
+        await user.delete();
+        alert('Account deleted.');
+        location.reload();
+      } catch(e){
+        alert('Reauthentication failed: ' + (e.message || e));
+      }
+    } else {
+      alert('Account deletion failed: ' + (err.message || err));
+    }
+  }
+});
+
+/* quick render on search */
+searchInput.addEventListener('input', ()=> renderItems());
+</script>
+</body>
+</html>
